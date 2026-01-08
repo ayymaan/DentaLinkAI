@@ -1,29 +1,23 @@
 import logging
-from pathlib import Path
-from typing import Any, Dict
-
-import joblib
+from typing import Dict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+import math
 
 LOGGER = logging.getLogger("dentalink.ai")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-BASE_DIR = Path(__file__).parent
-MODELS_DIR = BASE_DIR / "models"
-
+app = FastAPI(title="DentalLink AI Service")
 
 class AppointmentPayload(BaseModel):
     booking_lead_days: float = Field(..., description="Days between booking and appointment")
     fee: float = Field(..., description="Appointment fee amount")
     status: str = Field(..., description="Current appointment status")
 
-
 class PaymentPayload(BaseModel):
     amount: float = Field(..., description="Payment amount")
     days_overdue: float = Field(..., description="Days past due date")
     method: str = Field(..., description="Payment method label")
-
 
 class TreatmentPayload(BaseModel):
     cost: float = Field(..., description="Treatment cost")
@@ -31,98 +25,75 @@ class TreatmentPayload(BaseModel):
     type: str = Field(..., description="Treatment type")
 
 
-class ModelRegistry:
-    def __init__(self) -> None:
-        self._models: Dict[str, Any] = {}
-
-    def load_model(self, key: str, filename: str) -> None:
-        model_path = MODELS_DIR / filename
-        if not model_path.exists():
-            raise FileNotFoundError(f"Model file missing: {model_path}")
-        self._models[key] = joblib.load(model_path)
-        LOGGER.info("Loaded model %s from %s", key, model_path)
-
-    def predict(self, key: str, features: list[float]) -> Dict[str, Any]:
-        model = self._models.get(key)
-        if model is None:
-            raise KeyError(f"Model not loaded: {key}")
-        probability = float(model.predict_proba([features])[0][1]) if hasattr(model, "predict_proba") else float(model.predict([features])[0])
-        label = bool(probability >= 0.5)
-        return {"probability": probability, "label": label}
+def sigmoid(x: float) -> float:
+    return 1 / (1 + math.exp(-x))
 
 
-registry = ModelRegistry()
+def appt_score(booking_lead_days: float, fee: float) -> float:
+    # simple “risk” simulation: shorter lead + higher fee => higher probability
+    x = (-0.25 * booking_lead_days) + (0.01 * fee)
+    return sigmoid(x)
 
 
-def load_models() -> None:
-    registry.load_model("appointment", "appointment_model.joblib")
-    registry.load_model("payment", "payment_model.joblib")
-    registry.load_model("treatment", "treatment_model.joblib")
+def payment_score(amount: float, days_overdue: float) -> float:
+    # overdue dominates
+    x = (0.35 * days_overdue) + (0.001 * amount)
+    return sigmoid(x)
 
 
-app = FastAPI(title="DentalLink AI Service")
+def treatment_score(cost: float) -> float:
+    x = 0.01 * cost
+    return sigmoid(x)
 
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    load_models()
-
-
-def log_io(endpoint: str, payload: Dict[str, Any], response: Dict[str, Any]) -> None:
-    LOGGER.info("Endpoint %s request: %s", endpoint, payload)
-    LOGGER.info("Endpoint %s response: %s", endpoint, response)
+def risk_level(p: float, hi: float, med: float) -> str:
+    return "High" if p >= hi else "Medium" if p >= med else "Low"
 
 
 @app.post("/predict/appointment")
-async def predict_appointment(body: AppointmentPayload) -> Dict[str, Any]:
+async def predict_appointment(body: AppointmentPayload) -> Dict[str, object]:
     try:
-        result = registry.predict("appointment", [body.booking_lead_days, body.fee])
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.exception("Appointment prediction failed")
+        p = appt_score(body.booking_lead_days, body.fee)
+        response = {
+            "predicted_no_show": bool(p >= 0.5),
+            "risk_score": round(p, 4),
+            "risk_level": risk_level(p, 0.67, 0.33),
+        }
+        LOGGER.info("appointment request=%s response=%s", body.model_dump(), response)
+        return response
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    response = {
-        "predicted_no_show": result["label"],
-        "risk_score": round(result["probability"], 4),
-        "risk_level": "High" if result["probability"] >= 0.67 else "Medium" if result["probability"] >= 0.33 else "Low",
-    }
-    log_io("appointment", body.model_dump(), response)
-    return response
 
 
 @app.post("/predict/payment")
-async def predict_payment(body: PaymentPayload) -> Dict[str, Any]:
+async def predict_payment(body: PaymentPayload) -> Dict[str, object]:
     try:
-        result = registry.predict("payment", [body.amount, body.days_overdue])
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.exception("Payment prediction failed")
+        p = payment_score(body.amount, body.days_overdue)
+        response = {
+            "predicted_late": bool(p >= 0.5),
+            "risk_score": round(p, 4),
+            "risk_level": risk_level(p, 0.7, 0.4),
+        }
+        LOGGER.info("payment request=%s response=%s", body.model_dump(), response)
+        return response
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    response = {
-        "predicted_late": result["label"],
-        "risk_score": round(result["probability"], 4),
-        "risk_level": "High" if result["probability"] >= 0.7 else "Medium" if result["probability"] >= 0.4 else "Low",
-    }
-    log_io("payment", body.model_dump(), response)
-    return response
 
 
 @app.post("/predict/treatment")
-async def predict_treatment(body: TreatmentPayload) -> Dict[str, Any]:
+async def predict_treatment(body: TreatmentPayload) -> Dict[str, object]:
     try:
-        result = registry.predict("treatment", [body.cost])
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.exception("Treatment prediction failed")
+        p = treatment_score(body.cost)
+        urgency_band = "Immediate" if p >= 0.75 else "Soon" if p >= 0.5 else "Routine"
+        response = {
+            "urgency_score": round(p * 100, 0),
+            "note_category": "Emergency" if urgency_band == "Immediate" else "FollowUp" if urgency_band == "Soon" else "Routine",
+            "recommended_next_step": f"Schedule {urgency_band.lower()} follow-up",
+        }
+        LOGGER.info("treatment request=%s response=%s", body.model_dump(), response)
+        return response
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    urgency_band = "Immediate" if result["probability"] >= 0.75 else "Soon" if result["probability"] >= 0.5 else "Routine"
-    response = {
-        "urgency_score": round(result["probability"] * 100, 0),
-        "note_category": "Emergency" if urgency_band == "Immediate" else "FollowUp" if urgency_band == "Soon" else "Routine",
-        "recommended_next_step": f"Schedule {urgency_band.lower()} follow-up",
-    }
-    log_io("treatment", body.model_dump(), response)
-    return response
 
 
 @app.get("/")
