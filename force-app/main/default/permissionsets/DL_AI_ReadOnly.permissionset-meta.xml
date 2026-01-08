@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>DentalLink AI Read-Only</label>
+
+    <classAccesses>
+        <apexClass>AppointmentAiScoreJob</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>PaymentAiScoreJob</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>TreatmentAiScoreJob</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+
+    <!-- Appointment AI fields -->
+    <fieldPermissions>
+        <field>Appointment__c.Predicted_NoShow__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Appointment__c.NoShowRisk__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Appointment__c.RiskLevel__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+
+    <!-- Payment AI fields -->
+    <fieldPermissions>
+        <field>Payment__c.Predicted_Late__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Payment__c.LatePaymentRisk__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+
+    <!-- Treatment AI fields -->
+    <fieldPermissions>
+        <field>Treatment__c.UrgencyScore__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Treatment__c.NoteCategory__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Treatment__c.RecommendedNextStep__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+
+    <!-- Helper fields -->
+    <fieldPermissions>
+        <field>Appointment__c.AI_Request_Number__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Payment__c.AI_Request_Number__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Treatment__c.AI_Request_Number__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+
+    <fieldPermissions>
+        <field>Appointment__c.Ai_LastError__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Payment__c.Ai_LastError__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Treatment__c.Ai_LastError__c</field>
+        <readable>true</readable>
+        <editable>false</editable>
+    </fieldPermissions>
+
+    <!-- Allow users to request re-scoring by setting Needs_AI__c back to true -->
+    <fieldPermissions>
+        <field>Appointment__c.Needs_AI__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Payment__c.Needs_AI__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <field>Treatment__c.Needs_AI__c</field>
+        <readable>true</readable>
+        <editable>true</editable>
+    </fieldPermissions>
+</PermissionSet>

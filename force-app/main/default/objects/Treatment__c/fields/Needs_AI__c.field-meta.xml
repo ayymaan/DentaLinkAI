@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Needs_AI__c</fullName>
+    <defaultValue>true</defaultValue>
+    <externalId>false</externalId>
+    <label>Needs AI</label>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>
